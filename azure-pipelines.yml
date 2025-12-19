@@ -1,0 +1,93 @@
+trigger: none
+pool: selfhostedagent
+
+stages:
+  - stage: terraforminstall
+    displayName: terraforminstall
+    jobs:
+    - job: terraforminstall
+      displayName: terraforminstall
+      steps:
+      - task: TerraformInstaller@1
+        inputs:
+          terraformVersion: 'latest'
+
+  - stage: initvalidateplan
+    displayName: initvalidateplan
+    jobs:
+    - job: initvalidateplan
+      displayName: initvalidplan
+      steps:
+      - task: TerraformTask@5
+        displayName: init
+        inputs:
+          provider: 'azurerm'
+          command: 'init'
+          workingDirectory: '$(System.DefaultWorkingDirectory)/Prod'
+          backendServiceArm: 'Runner-prod-01'
+          backendAzureRmResourceGroupName: 'RG-1'
+          backendAzureRmStorageAccountName: 'storage121425'
+          backendAzureRmContainerName: 'pipelinecontainer'
+          backendAzureRmKey: 'tfstate'
+
+      - task: TerraformTask@5
+        displayName: validate
+        inputs:
+          provider: 'azurerm'
+          command: 'validate'
+          workingDirectory: '$(System.DefaultWorkingDirectory)/Prod'
+
+      - task: TerraformTask@5
+        displayName: plan
+        inputs:
+          provider: 'azurerm'
+          command: 'plan'
+          workingDirectory: '$(System.DefaultWorkingDirectory)/Prod'
+          environmentServiceNameAzureRM: 'Runner-prod-01'
+
+  - stage: tflinttfsec
+    displayName: tflinttfsec
+    jobs:
+    - job: tflinttfsec
+      steps:
+      - task: PowerShell@2
+        displayName: tflint
+        inputs:
+          targetType: 'inline'
+          script: |
+            cd "$(System.DefaultWorkingDirectory)/Prod"
+            tflint --init
+            tflint
+
+      - task: PowerShell@2
+        displayName: tfsec
+        inputs:
+          targetType: 'inline'
+          script: |
+            cd "$(System.DefaultWorkingDirectory)/Prod"
+            tfsec .
+
+  - stage: terraformapply
+    displayName: terraformapply
+    jobs: 
+    - job: terraformapply
+      displayName: terraformapply
+      steps:
+      - task: TerraformTask@5
+        displayName: init
+        inputs:
+          provider: 'azurerm'
+          command: 'init'
+          workingDirectory: '$(System.DefaultWorkingDirectory)/Prod'
+          backendServiceArm: 'Runner-prod-01'
+          backendAzureRmResourceGroupName: 'RG-1'
+          backendAzureRmStorageAccountName: 'storage121425'
+          backendAzureRmContainerName: 'pipelinecontainer'
+          backendAzureRmKey: 'tfstate'
+
+      - task: TerraformTask@5
+        inputs:
+          provider: 'azurerm'
+          command: 'apply'
+          workingDirectory: '$(System.DefaultWorkingDirectory)/Prod'
+          environmentServiceNameAzureRM: 'Runner-prod-01'
